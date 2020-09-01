@@ -132,7 +132,7 @@ def main():
 
     print("Initializing dataset {}".format(args.dataset))
     dataset = data_manager.init_imgreid_dataset(
-        root=args.root, name=args.dataset, split_id=args.split_id,
+        root=args.root, name=args.dataset, split_id=args.split_id, isFinal=False,
         cuhk03_labeled=args.cuhk03_labeled, cuhk03_classic_split=args.cuhk03_classic_split,
     )
 
@@ -159,19 +159,19 @@ def main():
     )
 
     queryloader = DataLoader(
-        ImageDataset(dataset.query, transform=transform_test),
+        ImageDataset(dataset.query, transform=transform_test, isFinal=True),
         batch_size=args.test_batch, shuffle=False, num_workers=args.workers,
-        pin_memory=pin_memory, drop_last=False,
+        pin_memory=pin_memory, drop_last=False
     )
 
     galleryloader = DataLoader(
-        ImageDataset(dataset.gallery, transform=transform_test),
+        ImageDataset(dataset.gallery, transform=transform_test, isFinal=True),
         batch_size=args.test_batch, shuffle=False, num_workers=args.workers,
-        pin_memory=pin_memory, drop_last=False,
+        pin_memory=pin_memory, drop_last=False
     )
 
     print("Initializing model: {}".format(args.arch))
-    model = models.init_model(name=args.arch, num_classes=dataset.num_train_pids, loss={'xent', 'htri'})
+    model = models.init_model(name=args.arch, num_classes=dataset.num_train_pids, loss={'xent', 'htri'}, isFinal=False)
     print("Model size: {:.3f} M".format(count_num_param(model)))
 
     if args.label_smooth:

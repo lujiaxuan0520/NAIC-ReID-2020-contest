@@ -30,15 +30,19 @@ def read_image(img_path):
 
 class ImageDataset(Dataset):
     """Image Person ReID Dataset"""
-    def __init__(self, dataset, transform=None):
+    def __init__(self, dataset, transform=None, isFinal=False):
         self.dataset = dataset
         self.transform = transform
+        self.isFinal = isFinal
 
     def __len__(self):
         return len(self.dataset)
 
     def __getitem__(self, index):
-        img_path, pid, camid = self.dataset[index]
+        if self.isFinal:
+            img_path, camid = self.dataset[index]
+        else:
+            img_path, pid, camid = self.dataset[index]
         # img = read_image(img_path)
         
         # if self.transform is not None:
@@ -53,7 +57,11 @@ class ImageDataset(Dataset):
         img = read_image(img_path)
         if self.transform is not None:
             img = self.transform(img)
-        return img, pid, camid
+
+        if self.isFinal:
+            return img,img_path, camid
+        else:
+            return img, pid, camid
 
 
 class VideoDataset(Dataset):

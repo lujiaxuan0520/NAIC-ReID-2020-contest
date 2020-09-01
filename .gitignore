@@ -3,6 +3,7 @@ data/
 log/
 saved-models/
 PCL_ReID/
+results/
 torchreid/eval_lib/eval.c
 .idea
 
