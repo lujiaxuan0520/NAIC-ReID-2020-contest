@@ -194,5 +194,7 @@ def test_final(model, queryloader, galleryloader, use_gpu):
 
     return distmat, q_img_paths, g_img_paths
 
-if __name__ == '__main__':
-    main()
+
+main()
+# if __name__ == '__main__':
+#     main()

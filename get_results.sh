@@ -1,7 +1,7 @@
 python get_results.py -d pclreid \
-    -a resnet50 \
+    -a vmgn_hgnn \
     -j 0 \
-    --test-batch 100 \
-    --gpu-devices 5 \
-    --model-weight ./log/resnet50-xent/baseline_model.pth.tar \
-    --save-json ./baseline_submit.json
+    --test-batch 1000 \
+    --gpu-devices 6 \
+    --model-weight ./log/resnet50-xent/checkpoint_ep39.pth.tar \
+    --save-json ./tmp_submit.json

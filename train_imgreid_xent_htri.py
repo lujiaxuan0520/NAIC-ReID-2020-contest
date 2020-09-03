@@ -84,6 +84,8 @@ parser.add_argument('--label-smooth', action='store_true',
                     help="use label smoothing regularizer in cross entropy loss")
 # Architecture
 parser.add_argument('-a', '--arch', type=str, default='resnet50', choices=models.get_names())
+parser.add_argument('--global-branch', action='store_true',
+                    help="whether to use the global branch in the architecture")
 # Miscs
 parser.add_argument('--print-freq', type=int, default=10,
                     help="print frequency")
@@ -172,7 +174,7 @@ def main():
 
     print("Initializing model: {}".format(args.arch))
     # model = models.init_model(name=args.arch, num_classes=dataset.num_train_pids, loss={'xent', 'htri'}, isFinal=False)
-    model = models.init_model(name=args.arch,num_classes=dataset.num_train_pids, isFinal=False)
+    model = models.init_model(name=args.arch,num_classes=dataset.num_train_pids, isFinal=False, global_branch=args.global_branch)
     print("Model size: {:.3f} M".format(count_num_param(model)))
 
     if args.label_smooth:

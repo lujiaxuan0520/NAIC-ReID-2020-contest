@@ -111,7 +111,7 @@ class ResNetBackbone(nn.Module):
 class GSTA_HGNN(nn.Module):
     def __init__(self, num_classes, block, layers,
                  num_split, pyramid_part, use_pose, learn_graph,
-                 consistent_loss, isFinal=False,
+                 consistent_loss, isFinal=False,global_branch=False,
                  m_prob=1.0, K_neigs=[10], is_probH=True,
                  dropout=0.5,learn_attention=True,**kwargs):
         self.inplanes = 64
@@ -124,6 +124,7 @@ class GSTA_HGNN(nn.Module):
         self.training = False
         self.learn_edge = False
         self.isFinal = isFinal
+        self.global_branch = global_branch
 
         # backbone network
         backbone = ResNetBackbone(block, layers, 1)
@@ -220,9 +221,10 @@ class GSTA_HGNN(nn.Module):
         _, c, h, w = x4_1.shape
 
         # global branch
-        x4_1 = x4_1.view(B, c, h, w).contiguous()
-        g_f = self.global_avg_pool(x4_1).view(B, -1)
-        g_bn = self.global_bottleneck(g_f)
+        if self.global_branch:
+            x4_1 = x4_1.view(B, c, h, w).contiguous()
+            g_f = self.global_avg_pool(x4_1).view(B, -1)
+            g_bn = self.global_bottleneck(g_f)
 
         # split branch
         v_f = list()
@@ -264,9 +266,13 @@ class GSTA_HGNN(nn.Module):
         att_bn = self.att_bottleneck(att_f)
 
         if not self.training  or self.isFinal:
-            return torch.cat([g_bn, att_bn], dim=1)
+            if self.global_branch: # use two branch
+                return torch.cat([g_bn, att_bn], dim=1)
+            else:
+                return att_bn
 
-        g_out = self.global_classifier(g_bn)
+        if self.global_branch:
+            g_out = self.global_classifier(g_bn)
         att_out = self.att_classifier(att_bn)
 
         # # consistent
@@ -289,13 +295,13 @@ class GSTA_HGNN(nn.Module):
         #         satt_out_list.append(satt_out)
 
         if self.loss == {'xent'}:
-            out_list = [g_out, att_out]
+            out_list = [g_out, att_out] if self.global_branch else [att_out]
             # if self.consistent_loss:
             #     out_list.extend(satt_out_list)
             return out_list
         elif self.loss == {'xent', 'htri'}:
-            out_list = [g_out, att_out]
-            f_list = [g_f, att_f]
+            out_list = [g_out, att_out] if self.global_branch else [att_out]
+            f_list = [g_f, att_f] if self.global_branch else [att_f]
             # if self.consistent_loss:
             #     out_list.extend(satt_out_list)
             #     f_list.extend(satt_f_list)
@@ -317,7 +323,7 @@ def init_pretrained_weights(model, model_url):
     print("Initialized model with pretrained weights from {}".format(model_url))
 
 
-def vmgn_hgnn(num_classes, isFinal=False):
+def vmgn_hgnn(num_classes, isFinal=False, global_branch=False):
     model = GSTA_HGNN(
         num_classes=num_classes,
         block=Bottleneck,
@@ -334,7 +340,8 @@ def vmgn_hgnn(num_classes, isFinal=False):
         is_probH=True,
         dropout=0.5,
         learn_attention=False,
-        isFinal = isFinal
+        isFinal = isFinal,
+        global_branch=global_branch
     )
 
     return model
