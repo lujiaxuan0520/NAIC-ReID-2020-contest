@@ -13,6 +13,7 @@ from .xception import *
 from .inceptionv4 import *
 from .nasnet import *
 from .inceptionresnetv2 import *
+from .vmgn_hgnn import *
 
 
 __model_factory = {
@@ -34,6 +35,7 @@ __model_factory = {
     'inceptionresnetv2': InceptionResNetV2,
     'mudeep': MuDeep,
     'hacnn': HACNN,
+    'vmgn_hgnn': vmgn_hgnn,
 }
 
 

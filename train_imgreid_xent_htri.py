@@ -159,19 +159,20 @@ def main():
     )
 
     queryloader = DataLoader(
-        ImageDataset(dataset.query, transform=transform_test, isFinal=True),
+        ImageDataset(dataset.query, transform=transform_test, isFinal=False),
         batch_size=args.test_batch, shuffle=False, num_workers=args.workers,
         pin_memory=pin_memory, drop_last=False
     )
 
     galleryloader = DataLoader(
-        ImageDataset(dataset.gallery, transform=transform_test, isFinal=True),
+        ImageDataset(dataset.gallery, transform=transform_test, isFinal=False),
         batch_size=args.test_batch, shuffle=False, num_workers=args.workers,
         pin_memory=pin_memory, drop_last=False
     )
 
     print("Initializing model: {}".format(args.arch))
-    model = models.init_model(name=args.arch, num_classes=dataset.num_train_pids, loss={'xent', 'htri'}, isFinal=False)
+    # model = models.init_model(name=args.arch, num_classes=dataset.num_train_pids, loss={'xent', 'htri'}, isFinal=False)
+    model = models.init_model(name=args.arch,num_classes=dataset.num_train_pids, isFinal=False)
     print("Model size: {:.3f} M".format(count_num_param(model)))
 
     if args.label_smooth:
@@ -286,12 +287,12 @@ def train(epoch, model, criterion_xent, criterion_htri, optimizer, trainloader, 
             else:
                 loss = criterion_htri(features, pids)
         else:
-            if isinstance(outputs, tuple):
+            if isinstance(outputs, tuple) or isinstance(outputs, list):
                 xent_loss = DeepSupervision(criterion_xent, outputs, pids)
             else:
                 xent_loss = criterion_xent(outputs, pids)
             
-            if isinstance(features, tuple):
+            if isinstance(features, tuple) or isinstance(features, list):
                 htri_loss = DeepSupervision(criterion_htri, features, pids)
             else:
                 htri_loss = criterion_htri(features, pids)

@@ -9,6 +9,10 @@ import shutil
 from .iotools import mkdir_if_missing
 
 
+def calc_splits(num_split):
+    assert (num_split & (num_split - 1)) == 0, 'num_split must be the power of 2, {} is not supported'.format(num_split)
+    return [i for i in range(num_split, 0, -1) if num_split % i == 0]
+
 def visualize_ranked_results(distmat, dataset, save_dir='log/ranked_results', topk=20):
     """
     Visualize ranked results

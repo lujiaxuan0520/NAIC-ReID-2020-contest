@@ -108,7 +108,7 @@ def main():
     )
 
     print("Initializing model: {}".format(args.arch))
-    model = models.init_model(name=args.arch, loss={'xent', 'htri'}, isFinal=True, num_classes=19658)
+    model = models.init_model(name=args.arch, num_classes=19658, isFinal=True)
     print("Model size: {:.3f} M".format(count_num_param(model)))
 
     checkpoint = torch.load(args.model_weight)
