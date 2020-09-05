@@ -37,6 +37,8 @@ parser.add_argument('-d', '--dataset', type=str, default='market1501',
                     choices=data_manager.get_names())
 parser.add_argument('-a', '--arch', type=str, default='resnet50',
                     choices=models.get_names())
+parser.add_argument('--global-branch', action='store_true',
+                    help="whether to use the global branch in the architecture")
 parser.add_argument('--gpu-devices', default='0', type=str,
                     help='gpu device ids for CUDA_VISIBLE_DEVICES')
 parser.add_argument('--test-batch', default=100, type=int,
@@ -91,6 +93,7 @@ def main():
         T.Resize((args.height, args.width)),
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # T.Normalize(mean=[0.3495, 0.3453, 0.3941], std=[0.2755, 0.2122, 0.2563]),
     ])
 
     pin_memory = True if use_gpu else False
@@ -108,7 +111,7 @@ def main():
     )
 
     print("Initializing model: {}".format(args.arch))
-    model = models.init_model(name=args.arch, num_classes=19658, isFinal=True)
+    model = models.init_model(name=args.arch, num_classes=19658, isFinal=True, global_branch=args.global_branch)
     print("Model size: {:.3f} M".format(count_num_param(model)))
 
     checkpoint = torch.load(args.model_weight)

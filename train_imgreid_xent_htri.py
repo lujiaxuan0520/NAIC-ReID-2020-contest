@@ -142,13 +142,15 @@ def main():
         T.Random2DTranslation(args.height, args.width),
         T.RandomHorizontalFlip(),
         T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        T.Normalize(mean=[0.3495,0.3453,0.3941], std=[0.2755,0.2122,0.2563]),
     ])
 
     transform_test = T.Compose([
         T.Resize((args.height, args.width)),
         T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        T.Normalize(mean=[0.3495, 0.3453, 0.3941], std=[0.2755, 0.2122, 0.2563]),
     ])
 
     pin_memory = True if use_gpu else False
