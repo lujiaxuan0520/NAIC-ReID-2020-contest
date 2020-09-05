@@ -223,6 +223,7 @@ def main():
     start_time = time.time()
     train_time = 0
     best_rank1 = -np.inf
+    best_mAP = -np.inf
     best_epoch = 0
     print("==> Start training")
 
@@ -236,7 +237,7 @@ def main():
         if (epoch + 1) > args.start_eval and args.eval_step > 0 and (epoch + 1) % args.eval_step == 0 or (epoch + 1) == args.max_epoch:
             print("==> Test")
             rank1, rank2, rank3, rank4, mAP = test(model, queryloader, galleryloader, use_gpu)
-            is_best = rank1 > best_rank1
+            is_best = mAP > best_mAP
             
             if is_best:
                 best_rank1 = rank1

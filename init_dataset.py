@@ -14,7 +14,7 @@ import os
 import os.path as osp
 import random
 
-isFinal = True # true: generate gallery_list_final.txt and query_list_final.txt
+isFinal = False # true: generate gallery_list_final.txt and query_list_final.txt
 
 dataset_root = "./PCL_ReID"
 label_file = osp.join(dataset_root, 'label.txt')

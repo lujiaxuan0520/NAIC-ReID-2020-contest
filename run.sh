@@ -1,8 +1,8 @@
 python train_imgreid_xent_htri.py -d pclreid \
     -a vmgn_hgnn \
     --optim adam \
-    --lr 0.0003 \
-    --max-epoch 300 \
+    --lr 0.0002 \
+    --max-epoch 80 \
     --train-batch 64 \
     --test-batch 100 \
     --save-dir ./log/resnet50-xent \
