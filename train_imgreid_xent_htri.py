@@ -13,9 +13,9 @@ import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
-from torch.optim import lr_scheduler
+# from torch.optim import lr_scheduler
 
-from torchreid import data_manager
+from torchreid import data_manager, lr_scheduler
 from torchreid.dataset_loader import ImageDataset
 from torchreid import transforms as T
 from torchreid import models
@@ -82,6 +82,10 @@ parser.add_argument('--lambda-htri', type=float, default=1,
                     help="weight to balance hard triplet loss")
 parser.add_argument('--label-smooth', action='store_true',
                     help="use label smoothing regularizer in cross entropy loss")
+parser.add_argument('--soft-margin', action='store_true',
+                    help="soft margin for triplet loss")
+parser.add_argument('--warmup', action='store_true',
+                    help='enable warmup lr scheduler.')
 # Architecture
 parser.add_argument('-a', '--arch', type=str, default='resnet50', choices=models.get_names())
 parser.add_argument('--global-branch', action='store_true',
@@ -183,10 +187,13 @@ def main():
         criterion_xent = CrossEntropyLabelSmooth(num_classes=dataset.num_train_pids, use_gpu=use_gpu)
     else:
         criterion_xent = nn.CrossEntropyLoss()
-    criterion_htri = TripletLoss(margin=args.margin)
+    criterion_htri = TripletLoss(margin=args.margin, soft=args.soft_margin)
     
     optimizer = init_optim(args.optim, model.parameters(), args.lr, args.weight_decay)
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=args.stepsize, gamma=args.gamma)
+    if args.warmup:
+        scheduler = lr_scheduler.WarmupMultiStepLR(optimizer, milestones=args.stepsize, gamma=args.gamma,
+                                                   warmup_iters=10, warmup_factor=0.01)
 
     if args.load_weights:
         # load pretrained weights but ignore layers that don't match in size

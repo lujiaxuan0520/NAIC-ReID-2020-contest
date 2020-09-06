@@ -15,9 +15,10 @@ class TripletLoss(nn.Module):
     Args:
     - margin (float): margin for triplet.
     """
-    def __init__(self, margin=0.3):
+    def __init__(self, margin=0.3, soft=True):
         super(TripletLoss, self).__init__()
         self.margin = margin
+        self.soft = soft
         self.ranking_loss = nn.MarginRankingLoss(margin=margin)
 
     def forward(self, inputs, targets):
@@ -43,7 +44,12 @@ class TripletLoss(nn.Module):
         dist_ap = torch.cat(dist_ap)
         dist_an = torch.cat(dist_an)
         
-        # Compute ranking hinge loss
-        y = torch.ones_like(dist_an)
-        loss = self.ranking_loss(dist_an, dist_ap, y)
-        return loss
+        # # Compute ranking hinge loss
+        # y = torch.ones_like(dist_an)
+        # loss = self.ranking_loss(dist_an, dist_ap, y)
+        # return loss
+
+        if self.soft:
+            return torch.log(1 + torch.exp(dist_ap - dist_an)).mean()
+        else:
+            return self.ranking_loss(dist_an, dist_ap, torch.ones_like(dist_an))
