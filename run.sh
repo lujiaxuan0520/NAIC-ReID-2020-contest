@@ -11,3 +11,6 @@ python train_imgreid_xent_htri.py -d pclreid \
     --save-dir ./log/resnet50-xent \
     --gpu-devices 0 \
     --eval-step 1
+    --soft-margin
+    --label-smooth
+    --warmup

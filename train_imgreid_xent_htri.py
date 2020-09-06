@@ -143,11 +143,13 @@ def main():
     )
 
     transform_train = T.Compose([
+        T.MisAlignAugment(),
         T.Random2DTranslation(args.height, args.width),
         T.RandomHorizontalFlip(),
         T.ToTensor(),
         # T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         T.Normalize(mean=[0.3495,0.3453,0.3941], std=[0.2755,0.2122,0.2563]),
+        T.RandomErasing(),
     ])
 
     transform_test = T.Compose([
