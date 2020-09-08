@@ -15,7 +15,7 @@ import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 # from torch.optim import lr_scheduler
 
-from torchreid import data_manager, lr_scheduler
+from torchreid import data_manager, metrics, lr_scheduler
 from torchreid.dataset_loader import ImageDataset
 from torchreid import transforms as T
 from torchreid import models
@@ -86,6 +86,8 @@ parser.add_argument('--soft-margin', action='store_true',
                     help="soft margin for triplet loss")
 parser.add_argument('--warmup', action='store_true',
                     help='enable warmup lr scheduler.')
+parser.add_argument('--dist-metric', type=str, default='euclidean',
+                    help='distance metric')
 # Architecture
 parser.add_argument('-a', '--arch', type=str, default='resnet50', choices=models.get_names())
 parser.add_argument('--global-branch', action='store_true',
@@ -149,7 +151,7 @@ def main():
         T.ToTensor(),
         # T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         T.Normalize(mean=[0.3495,0.3453,0.3941], std=[0.2755,0.2122,0.2563]),
-        T.RandomErasing(),
+        # T.RandomErasing(),
     ])
 
     transform_test = T.Compose([
@@ -377,10 +379,11 @@ def test(model, queryloader, galleryloader, use_gpu, ranks=[1, 5, 10, 20], retur
     
     print("==> BatchTime(s)/BatchSize(img): {:.3f}/{}".format(batch_time.avg, args.test_batch))
 
-    m, n = qf.size(0), gf.size(0)
-    distmat = torch.pow(qf, 2).sum(dim=1, keepdim=True).expand(m, n) + \
-              torch.pow(gf, 2).sum(dim=1, keepdim=True).expand(n, m).t()
-    distmat.addmm_(1, -2, qf, gf.t())
+    # m, n = qf.size(0), gf.size(0)
+    # distmat = torch.pow(qf, 2).sum(dim=1, keepdim=True).expand(m, n) + \
+    #           torch.pow(gf, 2).sum(dim=1, keepdim=True).expand(n, m).t()
+    # distmat.addmm_(1, -2, qf, gf.t())
+    distmat = metrics.compute_distance_matrix(qf, gf, args.dist_metric)
     distmat = distmat.numpy()
 
     print("Computing CMC and mAP")

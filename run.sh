@@ -5,12 +5,12 @@ python train_imgreid_xent_htri.py -d pclreid \
     --max-epoch 80 \
     --train-batch 64 \
     --test-batch 100 \
+    --stepsize 20 40 60 \
+    --global-branch \
     --soft-margin \
     --label-smooth \
     --warmup \
     --save-dir ./log/resnet50-xent \
-    --gpu-devices 0 \
-    --eval-step 1
-    --soft-margin
-    --label-smooth
-    --warmup
+    --gpu-devices 5 \
+    --eval-step 1 \
+    --dist-metric cosine \

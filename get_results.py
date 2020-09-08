@@ -24,7 +24,7 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 
-from torchreid import data_manager
+from torchreid import data_manager, metrics
 from torchreid.dataset_loader import ImageDataset
 from torchreid import transforms as T
 from torchreid import models
@@ -67,6 +67,8 @@ parser.add_argument('--height', type=int, default=256,
                     help="height of an image (default: 256)")
 parser.add_argument('--width', type=int, default=128,
                     help="width of an image (default: 128)")
+parser.add_argument('--dist-metric', type=str, default='euclidean',
+                    help='distance metric')
 
 args = parser.parse_args()
 
@@ -189,10 +191,11 @@ def test_final(model, queryloader, galleryloader, use_gpu):
 
     print("==> BatchTime(s)/BatchSize(img): {:.3f}/{}".format(batch_time.avg, args.test_batch))
 
-    m, n = qf.size(0), gf.size(0)
-    distmat = torch.pow(qf, 2).sum(dim=1, keepdim=True).expand(m, n) + \
-              torch.pow(gf, 2).sum(dim=1, keepdim=True).expand(n, m).t()
-    distmat.addmm_(1, -2, qf, gf.t())
+    # m, n = qf.size(0), gf.size(0)
+    # distmat = torch.pow(qf, 2).sum(dim=1, keepdim=True).expand(m, n) + \
+    #           torch.pow(gf, 2).sum(dim=1, keepdim=True).expand(n, m).t()
+    # distmat.addmm_(1, -2, qf, gf.t())
+    distmat = metrics.compute_distance_matrix(qf, gf, args.dist_metric)
     distmat = distmat.numpy()
 
     return distmat, q_img_paths, g_img_paths
