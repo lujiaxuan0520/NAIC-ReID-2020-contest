@@ -5,5 +5,6 @@ python get_results.py -d pclreid \
     --gpu-devices 5 \
     --global-branch \
     --dist-metric cosine \
+    --re-rank \
     --model-weight ./log/resnet50-xent/checkpoint_ep80.pth.tar \
     --save-json ./vmgn_hgnn3_best_submit.json

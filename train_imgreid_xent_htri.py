@@ -25,6 +25,7 @@ from torchreid.utils.avgmeter import AverageMeter
 from torchreid.utils.logger import Logger
 from torchreid.utils.torchtools import count_num_param
 from torchreid.utils.reidtools import visualize_ranked_results
+from torchreid.utils.re_ranking import re_ranking
 from torchreid.eval_metrics import evaluate
 from torchreid.samplers import RandomIdentitySampler
 from torchreid.optimizers import init_optim
@@ -115,6 +116,8 @@ parser.add_argument('--use-avai-gpus', action='store_true',
                     help="use available gpus instead of specified devices (this is useful when using managed clusters)")
 parser.add_argument('--vis-ranked-res', action='store_true',
                     help="visualize ranked results, only available in evaluation mode (default: False)")
+parser.add_argument('--re-rank', action='store_true',
+                    help='enable re-ranking in the testing stage.')
 
 args = parser.parse_args()
 
@@ -385,6 +388,12 @@ def test(model, queryloader, galleryloader, use_gpu, ranks=[1, 5, 10, 20], retur
     # distmat.addmm_(1, -2, qf, gf.t())
     distmat = metrics.compute_distance_matrix(qf, gf, args.dist_metric)
     distmat = distmat.numpy()
+
+    if args.re_rank:
+        print('Applying person re-ranking ...')
+        distmat_qq = metrics.compute_distance_matrix(qf, qf, args.dist_metric)
+        distmat_gg = metrics.compute_distance_matrix(gf, gf, args.dist_metric)
+        distmat = re_ranking(distmat, distmat_qq, distmat_gg)
 
     print("Computing CMC and mAP")
     cmc, mAP = evaluate(distmat, q_pids, g_pids, q_camids, g_camids, use_metric_cuhk03=args.use_metric_cuhk03)

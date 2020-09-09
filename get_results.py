@@ -30,6 +30,7 @@ from torchreid import transforms as T
 from torchreid import models
 from torchreid.utils.avgmeter import AverageMeter
 from torchreid.utils.torchtools import count_num_param
+from torchreid.utils.re_ranking import re_ranking
 
 parser = argparse.ArgumentParser(description='Train image model with cross entropy loss and hard triplet loss')
 
@@ -69,6 +70,8 @@ parser.add_argument('--width', type=int, default=128,
                     help="width of an image (default: 128)")
 parser.add_argument('--dist-metric', type=str, default='euclidean',
                     help='distance metric')
+parser.add_argument('--re-rank', action='store_true',
+                    help='enable re-ranking in the testing stage.')
 
 args = parser.parse_args()
 
@@ -197,6 +200,12 @@ def test_final(model, queryloader, galleryloader, use_gpu):
     # distmat.addmm_(1, -2, qf, gf.t())
     distmat = metrics.compute_distance_matrix(qf, gf, args.dist_metric)
     distmat = distmat.numpy()
+
+    if args.re_rank:
+        print('Applying person re-ranking ...')
+        distmat_qq = metrics.compute_distance_matrix(qf, qf, args.dist_metric)
+        distmat_gg = metrics.compute_distance_matrix(gf, gf, args.dist_metric)
+        distmat = re_ranking(distmat, distmat_qq, distmat_gg)
 
     return distmat, q_img_paths, g_img_paths
 

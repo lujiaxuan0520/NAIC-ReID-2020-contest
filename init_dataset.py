@@ -15,7 +15,7 @@ import os.path as osp
 import random
 
 isFinal = False # true: generate gallery_list_final.txt and query_list_final.txt
-all_as_train = False # true: let all the images in label.txt be the training images
+all_as_train = True # true: let all the images in label.txt be the training images
 
 dataset_root = "./PCL_ReID"
 label_file = osp.join(dataset_root, 'label.txt')
@@ -32,23 +32,6 @@ for img_idx, img_info in enumerate(lines):
     img_path, pid = img_info.split(':')
     pid = int(pid)
     pid_dict[img_path] = pid
-
-# write to gallery_list.txt or gallery_list_final.txt
-file = open(gallery_file,"w")
-if isFinal:
-    pre = osp.join(dataset_root, "gallery")
-    file_list = os.listdir(pre)
-    for key in file_list:
-        img_path = osp.join(pre, key)
-        line = img_path + '\n'
-        file.writelines(line)
-else:
-    pre = osp.join(dataset_root, "images")
-    for key, value in pid_dict.items():
-        img_path = osp.join(pre, key)
-        line = img_path + ':' + str(value) + '\n'
-        file.writelines(line)
-file.close()
 
 # write to query_list.txt or query_list_final.txt
 file = open(query_file,"w")
@@ -69,6 +52,31 @@ else:
         img_path = osp.join(pre, key)
         line = img_path + ':' + str(pid_dict[key]) + '\n'
         file.writelines(line)
+file.close()
+
+# write to gallery_list.txt or gallery_list_final.txt
+file = open(gallery_file,"w")
+if isFinal:
+    pre = osp.join(dataset_root, "gallery")
+    file_list = os.listdir(pre)
+    for key in file_list:
+        img_path = osp.join(pre, key)
+        line = img_path + '\n'
+        file.writelines(line)
+else:
+    pre = osp.join(dataset_root, "images")
+    for key, value in pid_dict.items():
+        if all_as_train: # all of the images as gallery set
+            img_path = osp.join(pre, key)
+            line = img_path + ':' + str(value) + '\n'
+            file.writelines(line)
+        else:  # choose the images not in query as training set
+            if key in query_set:  # do not add to the training set
+                continue
+            else:
+                img_path = osp.join(pre, key)
+                line = img_path + ':' + str(value) + '\n'
+                file.writelines(line)
 file.close()
 
 # write to train_list.txt
