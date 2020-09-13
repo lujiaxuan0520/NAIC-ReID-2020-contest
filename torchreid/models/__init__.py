@@ -14,6 +14,7 @@ from .inceptionv4 import *
 from .nasnet import *
 from .inceptionresnetv2 import *
 from .vmgn_hgnn import *
+from .resnet_ibn_a_hgnn import *
 
 
 __model_factory = {
@@ -36,6 +37,7 @@ __model_factory = {
     'mudeep': MuDeep,
     'hacnn': HACNN,
     'vmgn_hgnn': vmgn_hgnn,
+    'resnet_ibn_a_hgnn': resnet101_ibn_a,
 }
 
 

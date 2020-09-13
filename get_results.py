@@ -116,7 +116,12 @@ def main():
     )
 
     print("Initializing model: {}".format(args.arch))
-    model = models.init_model(name=args.arch, num_classes=19658, isFinal=True, global_branch=args.global_branch)
+    model = models.init_model(name=args.arch,
+                              num_classes=34394,
+                              # num_classes=19658,
+                              isFinal=True,
+                              global_branch=args.global_branch,
+                              arch="resnet50") # arch chosen from {'resnet50','resnet101','resnet152'}
     print("Model size: {:.3f} M".format(count_num_param(model)))
 
     checkpoint = torch.load(args.model_weight)
@@ -131,6 +136,10 @@ def main():
 
     print("Evaluate only")
     distmat, q_img_paths, g_img_paths = test_final(model, queryloader, galleryloader, use_gpu)
+
+    # save the distmap for further ensemble
+    file_name = args.save_json.replace("./", "./results/").replace(".json",".npy")
+    np.save(file_name, distmat)
 
     res_dict = dict()
     for query_idx, line in enumerate(distmat):

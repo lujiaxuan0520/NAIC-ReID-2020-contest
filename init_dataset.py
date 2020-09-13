@@ -15,14 +15,17 @@ import os.path as osp
 import random
 
 isFinal = False # true: generate gallery_list_final.txt and query_list_final.txt
+# extended_data = []
+extended_data = ['REID2019'] # use extended training data and create train_extended_list.txt
 all_as_train = True # true: let all the images in label.txt be the training images
 
 dataset_root = "./PCL_ReID"
 label_file = osp.join(dataset_root, 'label.txt')
-train_file = osp.join(dataset_root, 'train_list.txt')
+train_file = osp.join(dataset_root, 'train_list.txt') if len(extended_data) == 0 else osp.join(dataset_root, 'train_extended_list.txt')
 query_file = osp.join(dataset_root, 'query_list_final.txt') if isFinal else osp.join(dataset_root, 'query_list.txt')
 gallery_file = osp.join(dataset_root, 'gallery_list_final.txt') if isFinal else osp.join(dataset_root, 'gallery_list.txt')
 no_label_file = osp.join(dataset_root, 'no_label_list.txt')
+max_pid = -1 # save the max person id
 
 # read the label.txt to pid_dict
 with open(label_file, 'r') as txt:
@@ -31,6 +34,8 @@ pid_dict = dict() # key: img_name, value: person_id
 for img_idx, img_info in enumerate(lines):
     img_path, pid = img_info.split(':')
     pid = int(pid)
+    if pid > max_pid: # save the max pid
+        max_pid = pid
     pid_dict[img_path] = pid
 
 # write to query_list.txt or query_list_final.txt
@@ -106,3 +111,43 @@ for key in file_list:
         line = img_path + '\n'
         file.writelines(line)
 file.close()
+
+# write to train_extended_list.txt
+pre_max_pid = -1 # save the actual max pid of REID_2019_pre
+for dataset in extended_data:
+    if dataset == "REID2019":
+        file_w = open(train_file, "a")
+        # read from the REID2019_pre
+        root = "../REID2019/REID2019_pre/"
+        label_file = osp.join(root, "train_list.txt")
+        with open(label_file, 'r') as txt:
+            lines = txt.readlines()
+        for img_idx, img_info in enumerate(lines):
+            img_path, pid = img_info.split(' ')
+            img_path = img_path.split('/')[-1]
+            pid = int(pid)
+            new_pid = max_pid + pid + 1
+            if new_pid > pre_max_pid: # save the actual max pid of REID_2019_pre
+                pre_max_pid = new_pid
+            new_img_path = osp.join(root, img_path)
+            line = new_img_path + ':' + str(new_pid) + '\n'
+            file_w.writelines(line)
+
+        # read from the REID2019_final
+        max_pid = pre_max_pid
+        root = "../REID2019/REID2019_final/"
+        label_file = osp.join(root, "train_list (1).txt")
+        with open(label_file, 'r') as txt:
+            lines = txt.readlines()
+        for img_idx, img_info in enumerate(lines):
+            img_path, pid = img_info.split(' ')
+            img_path = img_path.split('/')[-1]
+            pid = int(pid)
+            new_pid = max_pid + pid + 1
+            # if new_pid > pre_max_pid: # save the actual max pid of REID_2019_pre
+            #     pre_max_pid = new_pid
+            new_img_path = osp.join(root, img_path)
+            line = new_img_path + ':' + str(new_pid) + '\n'
+            file_w.writelines(line)
+
+        file_w.close()

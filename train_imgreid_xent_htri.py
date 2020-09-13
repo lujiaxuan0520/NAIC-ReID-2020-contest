@@ -19,7 +19,7 @@ from torchreid import data_manager, metrics, lr_scheduler
 from torchreid.dataset_loader import ImageDataset
 from torchreid import transforms as T
 from torchreid import models
-from torchreid.losses import CrossEntropyLabelSmooth, TripletLoss, DeepSupervision
+from torchreid.losses import CrossEntropyLabelSmooth, TripletLoss, CenterLoss, DeepSupervision
 from torchreid.utils.iotools import save_checkpoint, check_isfile
 from torchreid.utils.avgmeter import AverageMeter
 from torchreid.utils.logger import Logger
@@ -45,6 +45,8 @@ parser.add_argument('--width', type=int, default=128,
                     help="width of an image (default: 128)")
 parser.add_argument('--split-id', type=int, default=0,
                     help="split index (0-based)")
+parser.add_argument('--extended-data', action='store_true',
+                    help="use extended data (train_extended_list.txt) as training data, ")
 # CUHK03-specific setting
 parser.add_argument('--cuhk03-labeled', action='store_true',
                     help="use labeled images, if false, detected images are used (default: False)")
@@ -89,6 +91,10 @@ parser.add_argument('--warmup', action='store_true',
                     help='enable warmup lr scheduler.')
 parser.add_argument('--dist-metric', type=str, default='euclidean',
                     help='distance metric')
+parser.add_argument('--center-loss', action='store_true',
+                    help="whether to use center loss")
+parser.add_argument('--lambda-center', type=float, default=0.0005,
+                    help="weight to balance center loss")
 # Architecture
 parser.add_argument('-a', '--arch', type=str, default='resnet50', choices=models.get_names())
 parser.add_argument('--global-branch', action='store_true',
@@ -143,7 +149,7 @@ def main():
 
     print("Initializing dataset {}".format(args.dataset))
     dataset = data_manager.init_imgreid_dataset(
-        root=args.root, name=args.dataset, split_id=args.split_id, isFinal=False,
+        root=args.root, name=args.dataset, split_id=args.split_id, isFinal=False, extended_data=args.extended_data,
         cuhk03_labeled=args.cuhk03_labeled, cuhk03_classic_split=args.cuhk03_classic_split,
     )
 
@@ -151,6 +157,8 @@ def main():
         T.MisAlignAugment(),
         T.Random2DTranslation(args.height, args.width),
         T.RandomHorizontalFlip(),
+        T.Pad(10),
+        T.RandomCrop([args.height, args.width]),
         T.ToTensor(),
         # T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         T.Normalize(mean=[0.3495,0.3453,0.3941], std=[0.2755,0.2122,0.2563]),
@@ -187,16 +195,24 @@ def main():
 
     print("Initializing model: {}".format(args.arch))
     # model = models.init_model(name=args.arch, num_classes=dataset.num_train_pids, loss={'xent', 'htri'}, isFinal=False)
-    model = models.init_model(name=args.arch,num_classes=dataset.num_train_pids, isFinal=False, global_branch=args.global_branch)
+    model = models.init_model(name=args.arch,num_classes=dataset.num_train_pids, isFinal=False, global_branch=args.global_branch,
+                              arch="resnet50")  # arch chosen from {'resnet50','resnet101','resnet152'}
     print("Model size: {:.3f} M".format(count_num_param(model)))
 
     if args.label_smooth:
         criterion_xent = CrossEntropyLabelSmooth(num_classes=dataset.num_train_pids, use_gpu=use_gpu)
     else:
         criterion_xent = nn.CrossEntropyLoss()
+
+    if args.center_loss: # use center loss
+        criterion_center = CenterLoss(num_classes=dataset.num_train_pids, feat_dim=2048, use_gpu=use_gpu) # feat_dim may need modified
+    else:
+        criterion_center = None
+
     criterion_htri = TripletLoss(margin=args.margin, soft=args.soft_margin)
     
-    optimizer = init_optim(args.optim, model.parameters(), args.lr, args.weight_decay)
+    optimizer = init_optim(args.optim, filter(lambda p: p.requires_grad,model.parameters()),
+                           args.lr, args.weight_decay)
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=args.stepsize, gamma=args.gamma)
     if args.warmup:
         scheduler = lr_scheduler.WarmupMultiStepLR(optimizer, milestones=args.stepsize, gamma=args.gamma,
@@ -245,7 +261,7 @@ def main():
 
     for epoch in range(args.start_epoch, args.max_epoch):
         start_train_time = time.time()
-        train(epoch, model, criterion_xent, criterion_htri, optimizer, trainloader, use_gpu)
+        train(epoch, model, criterion_xent, criterion_htri, criterion_center, optimizer, trainloader, use_gpu)
         train_time += round(time.time() - start_train_time)
         
         scheduler.step()
@@ -283,7 +299,7 @@ def main():
     print("Finished. Total elapsed time (h:m:s): {}. Training time (h:m:s): {}.".format(elapsed, train_time))
 
 
-def train(epoch, model, criterion_xent, criterion_htri, optimizer, trainloader, use_gpu):
+def train(epoch, model, criterion_xent, criterion_htri, criterion_center, optimizer, trainloader, use_gpu):
     losses = AverageMeter()
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -315,8 +331,16 @@ def train(epoch, model, criterion_xent, criterion_htri, optimizer, trainloader, 
                 htri_loss = DeepSupervision(criterion_htri, features, pids)
             else:
                 htri_loss = criterion_htri(features, pids)
-            
-            loss = args.lambda_xent * xent_loss + args.lambda_htri * htri_loss
+
+            if args.center_loss: # use center loss
+                if isinstance(features, tuple) or isinstance(features, list):
+                    center_loss = DeepSupervision(criterion_center, features, pids)
+                else:
+                    center_loss = criterion_center(features, pids)
+                loss = args.lambda_xent * xent_loss + args.lambda_htri * htri_loss + args.lambda_center * center_loss
+            else:
+                loss = args.lambda_xent * xent_loss + args.lambda_htri * htri_loss
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
