@@ -31,6 +31,7 @@ from torchreid import models
 from torchreid.utils.avgmeter import AverageMeter
 from torchreid.utils.torchtools import count_num_param
 from torchreid.utils.re_ranking import re_ranking
+# from torchreid.utils.reranking import re_ranking
 
 parser = argparse.ArgumentParser(description='Train image model with cross entropy loss and hard triplet loss')
 
@@ -117,8 +118,8 @@ def main():
 
     print("Initializing model: {}".format(args.arch))
     model = models.init_model(name=args.arch,
-                              num_classes=34394,
-                              # num_classes=19658,
+                              # num_classes=34394, # 29626
+                              num_classes=19658,
                               isFinal=True,
                               global_branch=args.global_branch,
                               arch="resnet50") # arch chosen from {'resnet50','resnet101','resnet152'}
@@ -207,14 +208,26 @@ def test_final(model, queryloader, galleryloader, use_gpu):
     # distmat = torch.pow(qf, 2).sum(dim=1, keepdim=True).expand(m, n) + \
     #           torch.pow(gf, 2).sum(dim=1, keepdim=True).expand(n, m).t()
     # distmat.addmm_(1, -2, qf, gf.t())
+
+    # slow re-ranking
     distmat = metrics.compute_distance_matrix(qf, gf, args.dist_metric)
     distmat = distmat.numpy()
-
     if args.re_rank:
         print('Applying person re-ranking ...')
         distmat_qq = metrics.compute_distance_matrix(qf, qf, args.dist_metric)
         distmat_gg = metrics.compute_distance_matrix(gf, gf, args.dist_metric)
         distmat = re_ranking(distmat, distmat_qq, distmat_gg)
+
+    # fast re-ranking
+    # if args.re_rank:
+    #     print('Applying person re-ranking ...')
+    #     # distmat_qq = metrics.compute_distance_matrix(qf, qf, args.dist_metric)
+    #     # distmat_gg = metrics.compute_distance_matrix(gf, gf, args.dist_metric)
+    #     # distmat = re_ranking(distmat, distmat_qq, distmat_gg)
+    #     distmat = re_ranking(qf, gf, k1=20, k2=6, lambda_value=0.3)
+    # else:
+    #     distmat = metrics.compute_distance_matrix(qf, gf, args.dist_metric)
+    #     distmat = distmat.numpy()
 
     return distmat, q_img_paths, g_img_paths
 

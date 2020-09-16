@@ -157,8 +157,10 @@ def main():
         T.MisAlignAugment(),
         T.Random2DTranslation(args.height, args.width),
         T.RandomHorizontalFlip(),
-        T.Pad(10),
-        T.RandomCrop([args.height, args.width]),
+        # T.Pad(10),
+        # T.RandomCrop([args.height, args.width]),
+        # T.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.2),
+        # T.transforms.RandomAffine(0, translate=None, scale=[0.9, 1.1], shear=None, resample=False, fillcolor=128),
         T.ToTensor(),
         # T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         T.Normalize(mean=[0.3495,0.3453,0.3941], std=[0.2755,0.2122,0.2563]),
@@ -194,7 +196,6 @@ def main():
     )
 
     print("Initializing model: {}".format(args.arch))
-    # model = models.init_model(name=args.arch, num_classes=dataset.num_train_pids, loss={'xent', 'htri'}, isFinal=False)
     model = models.init_model(name=args.arch,num_classes=dataset.num_train_pids, isFinal=False, global_branch=args.global_branch,
                               arch="resnet50")  # arch chosen from {'resnet50','resnet101','resnet152'}
     print("Model size: {:.3f} M".format(count_num_param(model)))
