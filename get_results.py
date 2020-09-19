@@ -117,12 +117,17 @@ def main():
     )
 
     print("Initializing model: {}".format(args.arch))
+    '''
+       vmgn_hgnn model, arch chosen from {'resnet50','resnet101','resnet152'}
+       efficientnet_hgnn model, arch chosen from {'efficientnet-b0', 'efficientnet-b1', 'efficientnet-b2', 'efficientnet-b3',
+       'efficientnet-b4', 'efficientnet-b5', 'efficientnet-b6', 'efficientnet-b7','efficientnet-b8'}
+       '''
     model = models.init_model(name=args.arch,
-                              # num_classes=34394, # 29626
+                              # num_classes=29626, # 29626 or 34394
                               num_classes=19658,
                               isFinal=True,
                               global_branch=args.global_branch,
-                              arch="resnet50") # arch chosen from {'resnet50','resnet101','resnet152'}
+                              arch="efficientnet-b5")
     print("Model size: {:.3f} M".format(count_num_param(model)))
 
     checkpoint = torch.load(args.model_weight)
@@ -138,9 +143,11 @@ def main():
     print("Evaluate only")
     distmat, q_img_paths, g_img_paths = test_final(model, queryloader, galleryloader, use_gpu)
 
-    # save the distmap for further ensemble
+    # save the distmap, q_img_paths, g_img_paths for further ensemble
     file_name = args.save_json.replace("./", "./results/").replace(".json",".npy")
     np.save(file_name, distmat)
+    np.save(file_name.replace(".npy", "_q_img_paths.npy"), q_img_paths)
+    np.save(file_name.replace(".npy", "_g_img_paths.npy"), g_img_paths)
 
     res_dict = dict()
     for query_idx, line in enumerate(distmat):
@@ -153,6 +160,8 @@ def main():
     json_str = json.dumps(res_dict)
     with open(args.save_json, 'w') as json_file:
         json_file.write(json_str)
+
+    print("Done.")
 
 
 

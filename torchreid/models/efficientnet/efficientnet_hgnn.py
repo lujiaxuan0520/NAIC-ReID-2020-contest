@@ -1,4 +1,4 @@
-"""model.py - Model and module class for EfficientNet.
+"""model.py - Model and module class for EfficientNet_HGNN
    They are built to mirror those in the official TensorFlow implementation.
 """
 
@@ -6,9 +6,11 @@
 # Github repo: https://github.com/lukemelas/EfficientNet-PyTorch
 # With adjustments and added comments by workingcoder (github username).
 
+import copy
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torch.nn.parameter import Parameter
 from .utils import (
     round_filters,
     round_repeats,
@@ -19,8 +21,13 @@ from .utils import (
     load_pretrained_weights,
     Swish,
     MemoryEfficientSwish,
-    calculate_output_image_size
+    calculate_output_image_size,
+    calc_splits,
+    weights_init_kaiming,
+    weights_init_classifier
 )
+from HGNN import HGNN_conv
+from HGNN import construct_H_with_KNN, generate_G_from_H
 
 VALID_MODELS = (
     'efficientnet-b0', 'efficientnet-b1', 'efficientnet-b2', 'efficientnet-b3',
@@ -139,7 +146,7 @@ class MBConvBlock(nn.Module):
         self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
 
 
-class EfficientNet(nn.Module):
+class EfficientNet_HGNN(nn.Module):
     """EfficientNet model.
        Most easily loaded with the .from_name or .from_pretrained methods.
 
@@ -161,12 +168,15 @@ class EfficientNet(nn.Module):
         >>> outputs = model(inputs)
     """
 
-    def __init__(self, blocks_args=None, global_params=None):
+    def __init__(self, blocks_args=None, global_params=None, other_params=None,**kwargs):
         super().__init__()
         assert isinstance(blocks_args, list), 'blocks_args should be a list'
         assert len(blocks_args) > 0, 'block args must be greater than 0'
         self._global_params = global_params
         self._blocks_args = blocks_args
+        self.other_params = other_params
+        self.training = False
+        self.loss = {'xent', 'htri'}
 
         # Batch norm parameters
         bn_mom = 1 - self._global_params.batch_norm_momentum
@@ -207,14 +217,50 @@ class EfficientNet(nn.Module):
         in_channels = block_args.output_filters  # output of final block
         out_channels = round_filters(1280, self._global_params)
         Conv2d = get_same_padding_conv2d(image_size=image_size)
+        # self._conv_head = Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
         self._conv_head = Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
         self._bn1 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
 
-        # Final linear layer
+        # global branch, Final linear layer
         self._avg_pooling = nn.AdaptiveAvgPool2d(1)
         self._dropout = nn.Dropout(self._global_params.dropout_rate)
-        self._fc = nn.Linear(out_channels, self._global_params.num_classes)
+        self._global_bottleneck = nn.BatchNorm1d(out_channels)
+        self._fc = nn.Linear(out_channels, self._global_params.num_classes) if 'num_classes' not in self.other_params \
+            else nn.Linear(out_channels, self.other_params['num_classes'])
         self._swish = MemoryEfficientSwish()
+
+        # hgnn branch
+        # split branch, from layer4_2
+        self.num_split = self.other_params['num_split']
+        self.total_split_list = calc_splits(self.num_split) if self.other_params['pyramid_part'] else [self.num_split]
+        self.total_split = sum(self.total_split_list)
+
+        self.parts_avgpool = nn.ModuleList()
+        for n in self.total_split_list:
+            self.parts_avgpool.append(nn.AdaptiveAvgPool2d((n, 1)))
+
+        # hgnn graph layers
+        self.m_prob = self.other_params['m_prob']  # parameter in hypergraph incidence matrix construction
+        self.K_neigs = self.other_params['K_neigs']  # the number of neighbor expansion
+        self.is_probH = self.other_params['is_probH']  # probability Vertex-Edge matrix or binary
+        self.dropout = self.other_params['dropout']
+        self.hgc1 = HGNN_conv(out_channels,
+                              out_channels)  # self.hgc1 = HGNN_conv(self.feature_dim, self.n_hid)
+        self.hgc2 = HGNN_conv(out_channels, out_channels)  # self.hgc2 = HGNN_conv(self.n_hid, num_classes)
+
+        # attention branch
+        # if self.other_params['learn_attention']:
+        #     self.attention_weight = Parameter(torch.Tensor(self.seq_len, self.total_split, 1))
+        #     self._reset_attention_parameters()
+
+        self.consistent_loss =self.other_params['consistent_loss']
+
+        self.att_bottleneck = nn.BatchNorm1d(out_channels)  # nn.BatchNorm1d(num_classes)
+        self.att_bottleneck.bias.requires_grad_(False)
+        self.att_classifier = nn.Linear(out_channels, self.other_params['num_classes'], bias=False)
+        weights_init_kaiming(self.att_bottleneck)
+        weights_init_classifier(self.att_classifier)
+
 
     def set_swish(self, memory_efficient=True):
         """Sets swish function as memory efficient (for training) or standard (for export).
@@ -308,13 +354,96 @@ class EfficientNet(nn.Module):
         """
         # Convolution layers
         x = self.extract_features(inputs)
-        # Pooling and final linear layer
-        x = self._avg_pooling(x)
-        if self._global_params.include_top:
-            x = x.flatten(start_dim=1)
-            x = self._dropout(x)
-            x = self._fc(x)
-        return x
+        b, c, h, w = x.shape
+
+        # # Pooling and final linear layer
+        # x = self._avg_pooling(x4_1)
+        # if self._global_params.include_top:
+        #     x = x.flatten(start_dim=1)
+        #     x = self._dropout(x)
+        #     x = self._fc(x)
+
+        # global branch
+        if self.other_params['global_branch']:
+            x4_1 = x.view(b, c, h, w).contiguous()
+            g_f = self._avg_pooling(x4_1).view(b, -1)
+            g_bn = self._global_bottleneck(g_f)
+
+        # split branch
+        v_f = list()
+        for idx, n in enumerate(self.total_split_list):
+            v_f.append(self.parts_avgpool[idx](x).view(b, c, n))
+        v_f = torch.cat(v_f, dim=2)
+        f = v_f.transpose(1, 2).contiguous()
+
+        # construct the hgnn graph
+        G = []
+        for feature in f:
+            H = construct_H_with_KNN(feature.cpu().detach().numpy(), K_neigs=self.other_params['K_neigs'],
+                                     is_probH=self.other_params['is_probH'],
+                                     m_prob=self.other_params['m_prob'])
+            g = generate_G_from_H(H, variable_weight=False)
+            G.append(g.A)
+        G = torch.tensor(G, dtype=torch.float32)
+
+        # hgnn graph propogation
+        f = F.relu(self.hgc1(f, G))
+        f = F.dropout(f, self.dropout)
+        f = self.hgc2(f, G)
+
+        # attention branch
+        if self.other_params['learn_attention']:  # learn the weight of attention
+            f_fuse = self._learn_attention_op(f)
+        else:  # calculate the norm as the attention weight
+            f_fuse = self._attention_op(f)
+
+        att_f = f_fuse.view(b, -1)
+        att_bn = self.att_bottleneck(att_f)
+
+        if not self.training or self.other_params['isFinal']:
+            if self.other_params['global_branch']: # use two branch
+                return torch.cat([g_bn, att_bn], dim=1)
+            else:
+                return att_bn
+
+        if self.other_params['global_branch']:
+            g_out = self._fc(g_bn)
+        att_out = self.att_classifier(att_bn)
+
+        if self.loss == {'xent'}:
+            out_list = [g_out, att_out] if self.other_params['global_branch'] else [att_out]
+            # if self.consistent_loss:
+            #     out_list.extend(satt_out_list)
+            return out_list
+        elif self.loss == {'xent', 'htri'}:
+            out_list = [g_out, att_out] if self.other_params['global_branch'] else [att_out]
+            f_list = [g_f, att_f] if self.other_params['global_branch'] else [att_f]
+            # if self.consistent_loss:
+            #     out_list.extend(satt_out_list)
+            #     f_list.extend(satt_f_list)
+            return out_list, f_list
+        else:
+            raise KeyError('Unsupported loss: {}'.format(self.loss))
+
+    def _attention_op(self, feat):
+        """
+        do attention fusion
+        :param feat: (batch, seq_len, num_split, c)
+        :return: feat: (batch, num_split, c)
+        """
+        att = F.normalize(feat.norm(p=2, dim=2, keepdim=True), p=1, dim=1)
+        f = feat.mul(att).sum(dim=1)
+        return f
+
+    # def _learn_attention_op(self,feat):
+    #     """
+    #     do attention fusion, with the weight learned
+    #     :param feat: (batch, seq_len, num_split, c)
+    #     :return: feat: (batch, num_split, c)
+    #     """
+    #     f = feat.mul(self.attention_weight)
+    #     f = f.sum(dim=1)
+    #     return f
 
     @classmethod
     def from_name(cls, model_name, in_channels=3, **override_params):
@@ -336,8 +465,8 @@ class EfficientNet(nn.Module):
             An efficientnet model.
         """
         cls._check_model_name_is_valid(model_name)
-        blocks_args, global_params = get_model_params(model_name, override_params)
-        model = cls(blocks_args, global_params)
+        blocks_args, global_params, other_params = get_model_params(model_name, override_params)
+        model = cls(blocks_args, global_params, other_params)
         model._change_in_channels(in_channels)
         return model
 
@@ -413,3 +542,33 @@ class EfficientNet(nn.Module):
             Conv2d = get_same_padding_conv2d(image_size=self._global_params.image_size)
             out_channels = round_filters(32, self._global_params)
             self._conv_stem = Conv2d(in_channels, out_channels, kernel_size=3, stride=2, bias=False)
+
+
+def efficientnet_hgnn(num_classes, isFinal=False, global_branch=False, arch="efficientnet-b0"):
+    # arch = "resnet50" # can be changed
+    # layers_dict = {"resnet50":[3, 4, 6, 3],
+    #                "resnet101":[3, 4, 23, 3],
+    #                "resnet152":[3, 8, 36, 3]}
+    # layers = layers_dict[arch]
+    model = EfficientNet_HGNN.from_pretrained(
+        model_name = arch,
+        num_classes=num_classes,
+        # block=Bottleneck,
+        # layers=layers,
+        last_stride=1,
+        num_split=8,
+        pyramid_part=True,
+        num_gb=2,
+        use_pose=False,
+        learn_graph=True,
+        consistent_loss=False,
+        m_prob=1.0,
+        K_neigs=[3],
+        is_probH=True,
+        dropout=0.5,
+        learn_attention=False,
+        isFinal = isFinal,
+        global_branch=global_branch
+    )
+
+    return model

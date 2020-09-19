@@ -122,6 +122,11 @@ def round_repeats(repeats, global_params):
     return int(math.ceil(multiplier * repeats))
 
 
+def calc_splits(num_split):
+    assert (num_split & (num_split - 1)) == 0, 'num_split must be the power of 2, {} is not supported'.format(num_split)
+    return [i for i in range(num_split, 0, -1) if num_split % i == 0]
+
+
 def drop_connect(inputs, p, training):
     """Drop connect.
 
@@ -540,10 +545,10 @@ def get_model_params(model_name, override_params):
             width_coefficient=w, depth_coefficient=d, dropout_rate=p, image_size=s)
     else:
         raise NotImplementedError('model name is not pre-defined: {}'.format(model_name))
-    if override_params:
-        # ValueError will be raised here if override_params has fields not included in global_params.
-        global_params = global_params._replace(**override_params)
-    return blocks_args, global_params
+    # if override_params:
+    #     # ValueError will be raised here if override_params has fields not included in global_params.
+    #     global_params = global_params._replace(**override_params)
+    return blocks_args, global_params, override_params
 
 
 # train with Standard methods
@@ -603,8 +608,32 @@ def load_pretrained_weights(model, model_name, weights_path=None, load_fc=True, 
         state_dict.pop('_fc.weight')
         state_dict.pop('_fc.bias')
         ret = model.load_state_dict(state_dict, strict=False)
-        assert set(ret.missing_keys) == set(
-            ['_fc.weight', '_fc.bias']), 'Missing keys when loading pretrained weights: {}'.format(ret.missing_keys)
-    assert not ret.unexpected_keys, 'Missing keys when loading pretrained weights: {}'.format(ret.unexpected_keys)
+    #     assert set(ret.missing_keys) == set(
+    #         ['_fc.weight', '_fc.bias']), 'Missing keys when loading pretrained weights: {}'.format(ret.missing_keys)
+    # assert not ret.unexpected_keys, 'Missing keys when loading pretrained weights: {}'.format(ret.unexpected_keys)
 
     print('Loaded pretrained weights for {}'.format(model_name))
+
+
+def weights_init_kaiming(m):
+    classname = m.__class__.__name__
+    if classname.find('Linear') != -1:
+        nn.init.kaiming_normal_(m.weight, a=0, mode='fan_out')
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+    elif classname.find('Conv') != -1:
+        nn.init.kaiming_normal_(m.weight, a=0, mode='fan_in')
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+    elif classname.find('BatchNorm') != -1:
+        if m.affine:
+            nn.init.normal_(m.weight, 1.0, 0.001)
+            nn.init.constant_(m.bias, 0.0)
+
+
+def weights_init_classifier(m):
+    classname = m.__class__.__name__
+    if classname.find('Linear') != -1:
+        nn.init.normal_(m.weight.data, std=0.001)
+        if m.bias is not None:
+            nn.init.constant_(m.bias.data, 0.0)

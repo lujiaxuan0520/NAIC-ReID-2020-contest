@@ -1,4 +1,4 @@
-"""model.py - Model and module class for EfficientNet.
+"""model.py - Model and module class for EfficientNet, not using hgnn
    They are built to mirror those in the official TensorFlow implementation.
 """
 
@@ -162,12 +162,15 @@ class EfficientNet(nn.Module):
         >>> outputs = model(inputs)
     """
 
-    def __init__(self, blocks_args=None, global_params=None):
+    def __init__(self, blocks_args=None, global_params=None, other_params=None,**kwargs):
         super().__init__()
         assert isinstance(blocks_args, list), 'blocks_args should be a list'
         assert len(blocks_args) > 0, 'block args must be greater than 0'
         self._global_params = global_params
         self._blocks_args = blocks_args
+        self.other_params = other_params
+        self.training = False
+        self.loss = {'xent', 'htri'}
 
         # Batch norm parameters
         bn_mom = 1 - self._global_params.batch_norm_momentum
@@ -214,7 +217,8 @@ class EfficientNet(nn.Module):
         # Final linear layer
         self._avg_pooling = nn.AdaptiveAvgPool2d(1)
         self._dropout = nn.Dropout(self._global_params.dropout_rate)
-        self._fc = nn.Linear(out_channels, self._global_params.num_classes)
+        self._fc = nn.Linear(out_channels, self._global_params.num_classes) if 'num_classes' not in self.other_params \
+            else nn.Linear(out_channels, self.other_params['num_classes'])
         self._swish = MemoryEfficientSwish()
 
     def set_swish(self, memory_efficient=True):
@@ -308,14 +312,26 @@ class EfficientNet(nn.Module):
             Output of this model after processing.
         """
         # Convolution layers
-        x = self.extract_features(inputs)
+        f = self.extract_features(inputs) # (32,1280,8,4)
         # Pooling and final linear layer
-        x = self._avg_pooling(x)
+        x = self._avg_pooling(f) # (32,1280,1,1)
         if self._global_params.include_top:
-            x = x.flatten(start_dim=1)
-            x = self._dropout(x)
-            x = self._fc(x)
-        return x
+            att_f = x.flatten(start_dim=1) # (32,1280)
+            att_bn = self._dropout(att_f)
+            att_out = self._fc(att_bn)
+
+        if not self.training or self.other_params['isFinal']:
+            return att_bn
+
+        if self.loss == {'xent'}:
+            out_list = [att_out]
+            return out_list
+        elif self.loss == {'xent', 'htri'}:
+            out_list = [att_out]
+            f_list = [att_f]
+            return out_list, f_list
+        else:
+            raise KeyError('Unsupported loss: {}'.format(self.loss))
 
     @classmethod
     def from_name(cls, model_name, in_channels=3, **override_params):
@@ -337,8 +353,8 @@ class EfficientNet(nn.Module):
             An efficientnet model.
         """
         cls._check_model_name_is_valid(model_name)
-        blocks_args, global_params = get_model_params(model_name, override_params)
-        model = cls(blocks_args, global_params)
+        blocks_args, global_params, other_params = get_model_params(model_name, override_params)
+        model = cls(blocks_args, global_params, other_params)
         model._change_in_channels(in_channels)
         return model
 
@@ -413,3 +429,33 @@ class EfficientNet(nn.Module):
             Conv2d = get_same_padding_conv2d(image_size=self._global_params.image_size)
             out_channels = round_filters(32, self._global_params)
             self._conv_stem = Conv2d(in_channels, out_channels, kernel_size=3, stride=2, bias=False)
+
+
+def efficientnet(num_classes, isFinal=False, global_branch=False, arch="efficientnet-b0"):
+    # arch = "resnet50" # can be changed
+    # layers_dict = {"resnet50":[3, 4, 6, 3],
+    #                "resnet101":[3, 4, 23, 3],
+    #                "resnet152":[3, 8, 36, 3]}
+    # layers = layers_dict[arch]
+    model = EfficientNet.from_pretrained(
+        model_name = arch,
+        num_classes=num_classes,
+        # block=Bottleneck,
+        # layers=layers,
+        last_stride=1,
+        num_split=8,
+        pyramid_part=True,
+        num_gb=2,
+        use_pose=False,
+        learn_graph=True,
+        consistent_loss=False,
+        m_prob=1.0,
+        K_neigs=[3],
+        is_probH=True,
+        dropout=0.5,
+        learn_attention=False,
+        isFinal = isFinal,
+        global_branch=global_branch
+    )
+
+    return model

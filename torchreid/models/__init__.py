@@ -15,7 +15,8 @@ from .nasnet import *
 from .inceptionresnetv2 import *
 from .vmgn_hgnn import *
 from .resnet_ibn_a_hgnn import *
-# from .efficientnet.efficientnet_hgnn import efficientnet_hgnn
+from .efficientnet.efficientnet import efficientnet
+from .efficientnet.efficientnet_hgnn import efficientnet_hgnn
 
 
 __model_factory = {
@@ -39,7 +40,8 @@ __model_factory = {
     'hacnn': HACNN,
     'vmgn_hgnn': vmgn_hgnn,
     'resnet_ibn_a_hgnn': resnet101_ibn_a,
-    # 'efficientnet_hgnn': efficientnet_hgnn
+    'efficientnet': efficientnet,
+    'efficientnet_hgnn': efficientnet_hgnn
 }
 
 

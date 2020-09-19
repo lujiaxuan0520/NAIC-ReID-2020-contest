@@ -154,7 +154,7 @@ def main():
     )
 
     transform_train = T.Compose([
-        T.MisAlignAugment(),
+        # T.MisAlignAugment(),
         T.Random2DTranslation(args.height, args.width),
         T.RandomHorizontalFlip(),
         # T.Pad(10),
@@ -196,8 +196,14 @@ def main():
     )
 
     print("Initializing model: {}".format(args.arch))
+
+    '''
+    vmgn_hgnn model, arch chosen from {'resnet50','resnet101','resnet152'}
+    efficientnet_hgnn model, arch chosen from {'efficientnet-b0', 'efficientnet-b1', 'efficientnet-b2', 'efficientnet-b3',
+    'efficientnet-b4', 'efficientnet-b5', 'efficientnet-b6', 'efficientnet-b7','efficientnet-b8'}
+    '''
     model = models.init_model(name=args.arch,num_classes=dataset.num_train_pids, isFinal=False, global_branch=args.global_branch,
-                              arch="resnet50")  # arch chosen from {'resnet50','resnet101','resnet152'}
+                              arch="resnet50")
     print("Model size: {:.3f} M".format(count_num_param(model)))
 
     if args.label_smooth:
