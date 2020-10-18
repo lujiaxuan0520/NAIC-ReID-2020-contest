@@ -219,7 +219,9 @@ class EfficientNet_HGNN(nn.Module):
         Conv2d = get_same_padding_conv2d(image_size=image_size)
         # self._conv_head = Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
         self._conv_head = Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
+        self._conv_head2 = copy.deepcopy(self._conv_head)
         self._bn1 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
+        self._bn2 = copy.deepcopy(self._bn1)
 
         # global branch, Final linear layer
         self._avg_pooling = nn.AdaptiveAvgPool2d(1)
@@ -338,9 +340,10 @@ class EfficientNet_HGNN(nn.Module):
             x = block(x, drop_connect_rate=drop_connect_rate)
 
         # Head
-        x = self._swish(self._bn1(self._conv_head(x)))
+        x_1 = self._swish(self._bn1(self._conv_head(x)))
+        x_2 = self._swish(self._bn2(self._conv_head2(x)))
 
-        return x
+        return x_1, x_2
 
     def forward(self, inputs):
         """EfficientNet's forward function.
@@ -353,8 +356,8 @@ class EfficientNet_HGNN(nn.Module):
             Output of this model after processing.
         """
         # Convolution layers
-        x = self.extract_features(inputs)
-        b, c, h, w = x.shape
+        x_1, x_2 = self.extract_features(inputs)
+        b, c, h, w = x_1.shape
 
         # # Pooling and final linear layer
         # x = self._avg_pooling(x4_1)
@@ -365,14 +368,14 @@ class EfficientNet_HGNN(nn.Module):
 
         # global branch
         if self.other_params['global_branch']:
-            x4_1 = x.view(b, c, h, w).contiguous()
+            x4_1 = x_1.view(b, c, h, w).contiguous()
             g_f = self._avg_pooling(x4_1).view(b, -1)
             g_bn = self._global_bottleneck(g_f)
 
         # split branch
         v_f = list()
         for idx, n in enumerate(self.total_split_list):
-            v_f.append(self.parts_avgpool[idx](x).view(b, c, n))
+            v_f.append(self.parts_avgpool[idx](x_2).view(b, c, n))
         v_f = torch.cat(v_f, dim=2)
         f = v_f.transpose(1, 2).contiguous()
 

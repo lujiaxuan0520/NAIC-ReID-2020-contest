@@ -19,7 +19,7 @@ from torchreid import data_manager, metrics, lr_scheduler
 from torchreid.dataset_loader import ImageDataset
 from torchreid import transforms as T
 from torchreid import models
-from torchreid.losses import CrossEntropyLabelSmooth, TripletLoss, CenterLoss, DeepSupervision
+from torchreid.losses import CrossEntropyLabelSmooth, TripletLoss, WeightedTripletLoss, CenterLoss, DeepSupervision
 from torchreid.utils.iotools import save_checkpoint, check_isfile
 from torchreid.utils.avgmeter import AverageMeter
 from torchreid.utils.logger import Logger
@@ -46,7 +46,9 @@ parser.add_argument('--width', type=int, default=128,
 parser.add_argument('--split-id', type=int, default=0,
                     help="split index (0-based)")
 parser.add_argument('--extended-data', action='store_true',
-                    help="use extended data (train_extended_list.txt) as training data, ")
+                    help="use extended data (train_extended_list.txt) as training data.")
+parser.add_argument('--pseudo-data', action='store_true',
+                    help="use pseudo-labeled data (train_pseudo_list.txt) as training data.")
 # CUHK03-specific setting
 parser.add_argument('--cuhk03-labeled', action='store_true',
                     help="use labeled images, if false, detected images are used (default: False)")
@@ -87,6 +89,8 @@ parser.add_argument('--label-smooth', action='store_true',
                     help="use label smoothing regularizer in cross entropy loss")
 parser.add_argument('--soft-margin', action='store_true',
                     help="soft margin for triplet loss")
+parser.add_argument('--weighted-triplet', action='store_true',
+                    help="whether to use weighted triplet loss")
 parser.add_argument('--warmup', action='store_true',
                     help='enable warmup lr scheduler.')
 parser.add_argument('--dist-metric', type=str, default='euclidean',
@@ -150,11 +154,11 @@ def main():
     print("Initializing dataset {}".format(args.dataset))
     dataset = data_manager.init_imgreid_dataset(
         root=args.root, name=args.dataset, split_id=args.split_id, isFinal=False, extended_data=args.extended_data,
-        cuhk03_labeled=args.cuhk03_labeled, cuhk03_classic_split=args.cuhk03_classic_split,
+        pseudo_data=args.pseudo_data, cuhk03_labeled=args.cuhk03_labeled, cuhk03_classic_split=args.cuhk03_classic_split,
     )
 
     transform_train = T.Compose([
-        # T.MisAlignAugment(),
+        T.MisAlignAugment(),
         T.Random2DTranslation(args.height, args.width),
         T.RandomHorizontalFlip(),
         # T.Pad(10),
@@ -203,7 +207,7 @@ def main():
     'efficientnet-b4', 'efficientnet-b5', 'efficientnet-b6', 'efficientnet-b7','efficientnet-b8'}
     '''
     model = models.init_model(name=args.arch,num_classes=dataset.num_train_pids, isFinal=False, global_branch=args.global_branch,
-                              arch="resnet50")
+                              arch="resnet101")
     print("Model size: {:.3f} M".format(count_num_param(model)))
 
     if args.label_smooth:
@@ -216,7 +220,10 @@ def main():
     else:
         criterion_center = None
 
-    criterion_htri = TripletLoss(margin=args.margin, soft=args.soft_margin)
+    if args.weighted_triplet:
+        criterion_htri = WeightedTripletLoss()
+    else:
+        criterion_htri = TripletLoss(margin=args.margin, soft=args.soft_margin)
     
     optimizer = init_optim(args.optim, filter(lambda p: p.requires_grad,model.parameters()),
                            args.lr, args.weight_decay)

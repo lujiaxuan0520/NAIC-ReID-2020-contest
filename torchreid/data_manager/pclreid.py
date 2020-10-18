@@ -19,11 +19,17 @@ import h5py
 class Pclreid(object):
     dataset_dir = 'PCL_ReID'
 
-    def __init__(self, root='data', verbose=True,isFinal=False, extended_data=False,**kwargs):
+    def __init__(self, root='data', verbose=True,isFinal=False, extended_data=False,pseudo_data=False,**kwargs):
         super(Pclreid, self).__init__()
         self.dataset_dir = osp.join(root, self.dataset_dir)
-        self.list_train_path = osp.join(self.dataset_dir, 'train_extended_list.txt') if extended_data else \
-            osp.join(self.dataset_dir, 'train_list.txt')
+        if extended_data and pseudo_data:
+            self.list_train_path = osp.join(self.dataset_dir, 'train_extended_pseudo_list.txt')
+        elif extended_data and not pseudo_data:
+            self.list_train_path = osp.join(self.dataset_dir, 'train_extended_list.txt')
+        elif not extended_data and pseudo_data:
+            self.list_train_path = osp.join(self.dataset_dir, 'train_pseudo_list.txt')
+        else:
+            self.list_train_path = osp.join(self.dataset_dir, 'train_list.txt')
         self.list_query_path = osp.join(self.dataset_dir, 'query_list_final.txt') if isFinal else \
             osp.join(self.dataset_dir, 'query_list.txt')
         self.list_gallery_path = osp.join(self.dataset_dir, 'gallery_list_final.txt') if isFinal else \

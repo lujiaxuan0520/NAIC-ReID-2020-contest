@@ -14,6 +14,7 @@ from __future__ import print_function
 from __future__ import division
 
 import os
+import os.path as osp
 import time
 import argparse
 import numpy as np
@@ -30,6 +31,7 @@ from torchreid import transforms as T
 from torchreid import models
 from torchreid.utils.avgmeter import AverageMeter
 from torchreid.utils.torchtools import count_num_param
+from torchreid.utils.reidtools import visualize_ranked_results
 from torchreid.utils.re_ranking import re_ranking
 # from torchreid.utils.reranking import re_ranking
 
@@ -73,6 +75,9 @@ parser.add_argument('--dist-metric', type=str, default='euclidean',
                     help='distance metric')
 parser.add_argument('--re-rank', action='store_true',
                     help='enable re-ranking in the testing stage.')
+parser.add_argument('--vis-ranked-res', action='store_true',
+                    help='visualize the ranked result or not.')
+
 
 args = parser.parse_args()
 
@@ -123,11 +128,11 @@ def main():
        'efficientnet-b4', 'efficientnet-b5', 'efficientnet-b6', 'efficientnet-b7','efficientnet-b8'}
        '''
     model = models.init_model(name=args.arch,
-                              # num_classes=29626, # 29626 or 34394
+                              # num_classes=29626, # 30874 or 20906 or 29626 or 34394
                               num_classes=19658,
                               isFinal=True,
                               global_branch=args.global_branch,
-                              arch="efficientnet-b5")
+                              arch="resnet101")
     print("Model size: {:.3f} M".format(count_num_param(model)))
 
     checkpoint = torch.load(args.model_weight)
@@ -160,6 +165,13 @@ def main():
     json_str = json.dumps(res_dict)
     with open(args.save_json, 'w') as json_file:
         json_file.write(json_str)
+
+    if args.vis_ranked_res:
+        visualize_ranked_results(
+            distmat, dataset,
+            save_dir=args.save_json.replace("./","./img/").replace(".json",""),
+            topk=20,
+        )
 
     print("Done.")
 
@@ -225,7 +237,7 @@ def test_final(model, queryloader, galleryloader, use_gpu):
         print('Applying person re-ranking ...')
         distmat_qq = metrics.compute_distance_matrix(qf, qf, args.dist_metric)
         distmat_gg = metrics.compute_distance_matrix(gf, gf, args.dist_metric)
-        distmat = re_ranking(distmat, distmat_qq, distmat_gg)
+        distmat = re_ranking(distmat, distmat_qq, distmat_gg, k1=20, k2=6, lambda_value=0.3) # default: (20,6,0.3)
 
     # fast re-ranking
     # if args.re_rank:

@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import torch
-
+from .ranger import Ranger
 
 def init_optim(optim, params, lr, weight_decay):
     if optim == 'adam':
@@ -12,5 +12,7 @@ def init_optim(optim, params, lr, weight_decay):
         return torch.optim.SGD(params, lr=lr, momentum=0.9, weight_decay=weight_decay)
     elif optim == 'rmsprop':
         return torch.optim.RMSprop(params, lr=lr, momentum=0.9, weight_decay=weight_decay)
+    elif optim == 'ranger':
+        return Ranger(params, lr=lr, weight_decay=weight_decay)
     else:
         raise KeyError("Unsupported optimizer: {}".format(optim))

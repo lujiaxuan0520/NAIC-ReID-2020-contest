@@ -22,6 +22,7 @@ from .efficientnet.efficientnet_hgnn import efficientnet_hgnn
 __model_factory = {
     'resnet50': ResNet50,
     'resnet101': ResNet101,
+    # 'resnet152': ResNet152,
     'seresnet50': SEResNet50,
     'seresnet101': SEResNet101,
     'seresnext50': SEResNeXt50,
