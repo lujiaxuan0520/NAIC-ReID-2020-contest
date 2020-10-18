@@ -2,7 +2,9 @@
 data/
 log/
 saved-models/
-PCL_ReID/
+PCL_ReID/images/
+PCL_ReID/query/
+PCL_ReID/gallery/
 results/
 torchreid/eval_lib/eval.c
 .idea
