@@ -5,7 +5,7 @@
 # Date: November 2018
 # --------------------------------------------------------
 import numpy as np
-
+import torch
 
 def Eu_dis(x):
     """
@@ -78,7 +78,7 @@ def hyperedge_concat(*H_list):
     return H
 
 
-def generate_G_from_H(H, variable_weight=False):
+def generate_G_from_H(H, variable_weight=False, edge_weight=None):
     """
     calculate G from hypgraph incidence matrix H
     :param H: hypergraph incidence matrix H
@@ -86,7 +86,7 @@ def generate_G_from_H(H, variable_weight=False):
     :return: G
     """
     if type(H) != list:
-        return _generate_G_from_H(H, variable_weight)
+        return _generate_G_from_H(H, variable_weight, edge_weight=edge_weight)
     else:
         G = []
         for sub_H in H:
@@ -94,7 +94,7 @@ def generate_G_from_H(H, variable_weight=False):
         return G
 
 
-def _generate_G_from_H(H, variable_weight=False):
+def _generate_G_from_H(H, variable_weight=False, edge_weight=None):
     """
     calculate G from hypgraph incidence matrix H
     :param H: hypergraph incidence matrix H
@@ -105,36 +105,56 @@ def _generate_G_from_H(H, variable_weight=False):
     n_edge = H.shape[1]
 
     if variable_weight:
+        H = torch.Tensor(H)
+        if edge_weight.is_cuda and not H.is_cuda:
+            H = H.to('cuda')
         # the weight of the hyperedge
-        W = np.ones(n_edge)
+        # W = np.ones(n_edge)
+        W = edge_weight
         # the degree of the node
-        DV = np.sum(H * W, axis=1)
+        DV = torch.sum(H * W, 1)
         # the degree of the hyperedge
-        DE = np.sum(H, axis=0)
+        DE = torch.sum(H, 0)
 
-        invDE = np.mat(np.diag(np.power(DE, -1)))
-        DV2 = np.mat(np.diag(np.power(DV, -0.5)))
-        W = np.mat(np.diag(W))
-        H = np.mat(H)
-        HT = H.T
+        invDE = torch.diag(DE.pow(-1))
+        DV2 = torch.diag(DV.pow(-0.5))
+        W = torch.diag(W)
+        HT = H.t()
 
-        DV2_H = DV2 * H
-        invDE_HT_DV2 = invDE * HT * DV2
-        return DV2_H, W, invDE_HT_DV2
+        DV2_H = torch.mm(DV2, H)
+        invDE_HT_DV2 = torch.mm(torch.mm(invDE, HT), DV2)
+        G = torch.mm(torch.mm(DV2_H, W), invDE_HT_DV2)
+        return G
     else:
-        # the weight of the hyperedge
-        W = np.ones(n_edge)
-        # the degree of the node
-        DV = np.sum(H * W, axis=1)
-        # the degree of the hyperedge
-        DE = np.sum(H, axis=0)
+        # # the weight of the hyperedge
+        # W = np.ones(n_edge)
+        # # the degree of the node
+        # DV = np.sum(H * W, axis=1)
+        # # the degree of the hyperedge
+        # DE = np.sum(H, axis=0)
 
-        invDE = np.mat(np.diag(np.power(DE, -1)))
-        DV2 = np.mat(np.diag(np.power(DV, -0.5)))
-        W = np.mat(np.diag(W))
-        H = np.mat(H)
-        HT = H.T
-        G = DV2 * H * W * invDE * HT * DV2
+        # invDE = np.mat(np.diag(np.power(DE, -1)))
+        # DV2 = np.mat(np.diag(np.power(DV, -0.5)))
+        # W = np.mat(np.diag(W))
+        # H = np.mat(H)
+        # HT = H.T
+        # G = DV2 * H * W * invDE * HT * DV2
+        H = torch.Tensor(H)
+
+        W = torch.Tensor(np.ones(n_edge))
+        if W.is_cuda and not H.is_cuda:
+            H = H.to('cuda')
+        DV = torch.sum(H * W, 1)
+        DE = torch.sum(H, 0)
+
+        invDE = torch.diag(DE.pow(-1))
+        DV2 = torch.diag(DV.pow(-0.5))
+        W = torch.diag(W)
+        HT = H.t()
+
+        DV2_H = torch.mm(DV2, H)
+        invDE_HT_DV2 = torch.mm(torch.mm(invDE, HT), DV2)
+        G = torch.mm(torch.mm(DV2_H, W), invDE_HT_DV2)
         return G
 
 

@@ -239,8 +239,10 @@ class GSTA_HGNN(nn.Module):
             H = construct_H_with_KNN(feature.cpu().detach().numpy(), K_neigs=self.K_neigs, is_probH=self.is_probH,
                                      m_prob=self.m_prob)
             g = generate_G_from_H(H,variable_weight=self.learn_edge)
-            G.append(g.A)
-        G = torch.tensor(G, dtype=torch.float32)
+            # G.append(g.A)
+            G.append(g)
+        G = torch.stack(G)
+        # G = torch.tensor(G, dtype=torch.float32)
 
         # if self.use_pose:
         #     G = F.normalize(G, p=1, dim=2)

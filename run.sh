@@ -1,18 +1,19 @@
 python train_imgreid_xent_htri.py -d pclreid \
-    -a efficientnet_hgnn \
+    -a vmgn_hgnn \
     --optim adam \
     --lr 0.0002 \
     --max-epoch 80 \
-    --train-batch 64 \
+    --train-batch 256 \
     --test-batch 100 \
     --stepsize 20 40 60 \
     --global-branch \
     --soft-margin \
     --label-smooth \
     --warmup \
-    --save-dir ./log/efn-xent/efn3_hgnn1 \
-    --gpu-devices 0 \
+    --save-dir ./log/resnet50-xent/vmgn_hgnn25 \
+    --gpu-devices 0,2,3,5 \
     --eval-step 5 \
     --dist-metric cosine \
     --height 256 \
     --width 128 \
+    --extended-data \

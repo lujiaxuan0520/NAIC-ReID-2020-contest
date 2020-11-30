@@ -15,8 +15,8 @@ import os.path as osp
 import random
 
 isFinal = True # true: generate gallery_list_final.txt and query_list_final.txt
-# extended_data = []
-extended_data = ['REID2019'] # use extended training data and create train_extended_list.txt
+extended_data = []
+# extended_data = ['REID2019'] # use extended training data and create train_extended_list.txt
 all_as_train = True # true: let all the images in label.txt be the training images
 
 dataset_root = "./PCL_ReID"

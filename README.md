@@ -1,5 +1,5 @@
 # Introduction
-This is the code for ReID-2020 contest in the first stage, ranking 89 in Leardership B.
+This is the code for NAIC ReID-2020 contest, ranking 89 in the first stage and 52 in the second stage (top 3%).
 
 + Hypergraph learning for feature propagation.
 + Tricks including soft margin, label smooth and warmup.

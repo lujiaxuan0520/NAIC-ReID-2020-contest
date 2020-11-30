@@ -8,7 +8,7 @@ import json
 
 base_dir = './results/'
 
-save_json = "ensemble_6.json"
+save_json = "ensemble_rerank.json"
 # model_name = ['vmgn_hgnn4_best_rerank_submit',
 #               'vmgn_hgnn13_best_rerank_submit',
 #               'efn0_hgnn1_best_rerank_submit',
@@ -23,7 +23,7 @@ save_json = "ensemble_6.json"
 #               'vmgn_hgnn16_best_rerank2_submit']
 # model_weight = [0.52, 0.54, 0.48, 0.47, 0.48, 0.47, 0.45, 0.51, 0.47, 0.48, 0.51, 0.52] # the weight of different models
 # model_weight = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, ] # the weight of different models
-model_name = ['vmgn_hgnn4_best_rerank_submit','vmgn_hgnn13_best_rerank_submit']
+model_name = ['vmgn_hgnn4_best','vmgn_hgnn13_best']
 model_weight = [1.0, 1.0]
 
 

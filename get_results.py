@@ -32,8 +32,8 @@ from torchreid import models
 from torchreid.utils.avgmeter import AverageMeter
 from torchreid.utils.torchtools import count_num_param
 from torchreid.utils.reidtools import visualize_ranked_results
-from torchreid.utils.re_ranking import re_ranking
-# from torchreid.utils.reranking import re_ranking
+from torchreid.utils.re_ranking import re_ranking # slow re-ranking
+# from torchreid.utils.reranking import re_ranking # fast re-ranking
 
 parser = argparse.ArgumentParser(description='Train image model with cross entropy loss and hard triplet loss')
 
@@ -128,11 +128,11 @@ def main():
        'efficientnet-b4', 'efficientnet-b5', 'efficientnet-b6', 'efficientnet-b7','efficientnet-b8'}
        '''
     model = models.init_model(name=args.arch,
-                              # num_classes=29626, # 30874 or 20906 or 29626 or 34394
-                              num_classes=19658,
+                              num_classes=19658, # 30874 or 20906 or 29626 or 34394 or 29906 or 29626 or 19658
+                              # num_classes=19658,
                               isFinal=True,
                               global_branch=args.global_branch,
-                              arch="resnet101")
+                              arch="resnet50")
     print("Model size: {:.3f} M".format(count_num_param(model)))
 
     checkpoint = torch.load(args.model_weight)
@@ -239,7 +239,7 @@ def test_final(model, queryloader, galleryloader, use_gpu):
         distmat_gg = metrics.compute_distance_matrix(gf, gf, args.dist_metric)
         distmat = re_ranking(distmat, distmat_qq, distmat_gg, k1=20, k2=6, lambda_value=0.3) # default: (20,6,0.3)
 
-    # fast re-ranking
+    # # fast re-ranking
     # if args.re_rank:
     #     print('Applying person re-ranking ...')
     #     # distmat_qq = metrics.compute_distance_matrix(qf, qf, args.dist_metric)
